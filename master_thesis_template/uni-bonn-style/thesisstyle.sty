@@ -1,0 +1,133 @@
+\ProvidesPackage{thesisstyle}
+
+% Uni-Bonn title page style
+\usepackage{./uni-bonn-style/MA_Titlepage}
+
+\setcounter{secnumdepth}{3}
+
+\usepackage{setspace}
+
+\usepackage{xcolor}
+\usepackage{url}
+\usepackage[linktocpage]{hyperref}
+\hypersetup{
+    colorlinks = true,
+    citecolor = blue!50!black,
+}
+
+\def\sectionautorefname{Section}
+\def\subsectionautorefname{Subsection}
+\def\chapterautorefname{Chapter}
+\def\figureautorefname{Figure}
+\def\tableautorefname{Table}
+\def\algorithmautorefname{Algorithm}
+
+%\usepackage[
+%   backend=biber,
+%   sortlocale=en_US,
+%   natbib=true,
+%   hyperref=true,
+%   style=authoryear-comp,
+%   bibencoding=utf8
+%]{biblatex}
+
+\usepackage{tocbibind}
+
+\usepackage[square]{natbib}
+\bibliographystyle{humannat}
+
+% math
+\usepackage{amsthm}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+% \usepackage{MnSymbol}
+\usepackage{mathrsfs}
+\newtheorem{theorem}{Theorem}[chapter]
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{claim}[theorem]{Claim}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem*{example}{Example}
+\newtheorem*{remark}{Remark}
+% \DeclareMathOperator*{\argmin}{arg\,min}
+% \DeclareMathOperator*{\argmax}{arg\,max}
+
+% algorithms
+\usepackage[chapter]{algorithm}
+\usepackage{algpseudocode}
+%\renewcommand{\algorithmicrequire}{\textbf{Input:}}
+%\renewcommand{\algorithmicensure}{\textbf{Output:}}
+%\algnewcommand\func{\texttt}
+%\algnewcommand\class{\textsc}
+
+% tables
+\usepackage{booktabs}
+%\usepackage{caption}
+%\captionsetup[table]{skip=5pt}
+
+% lists
+\usepackage[ampersand]{easylist}
+\usepackage{enumitem}
+
+% graphics
+\usepackage{graphicx}
+\graphicspath{{figs/}}
+% \usepackage{subcaption}
+\usepackage{subfig}
+\usepackage{caption}
+\usepackage{lscape}
+
+% numbers
+\usepackage{siunitx}
+\sisetup{round-mode=places,round-precision=3,add-integer-zero=false}
+
+% company superscripts
+%\usepackage{textcomp}
+
+% for support of unicode in the citations
+%\usepackage{fontspec}
+\usepackage[utf8]{inputenc}
+
+% custom
+\newcommand{\email}[1]{\href{mailto:#1}{#1}}
+\DeclareMathOperator*{\argmin}{argmin} % thin space, limits underneath in displays
+% keywords
+\DeclareMathOperator*{\argmax}{argmax}
+% keywords
+\def\keywords{\vspace{.5em}
+{\textbf{Keywords}:\,\relax%
+}}
+\def\endkeywords{\par}
+
+% Tikz
+\usepackage[subpreambles=true]{standalone}
+\usepackage{tikz}
+\usetikzlibrary{bayesnet}
+\usetikzlibrary{fit}
+\usepackage{anyfontsize}
+\usetikzlibrary{positioning}
+\usetikzlibrary{shapes,snakes}
+\usetikzlibrary{arrows}
+\usetikzlibrary{shapes.misc}
+\usetikzlibrary{calc}
+% Import TikZ library for customizing arrow heads
+% i.e. an arrow head may be scaled in width/height via: -{Latex[length=2mm,width=2mm]}
+\usetikzlibrary{arrows.meta}
+
+
+% Header
+\usepackage{fancyhdr}
+
+\pagestyle{fancy}
+\renewcommand\chaptermark[1]{\markboth{\thechapter\ #1}{}}
+\fancyhf{}
+\fancyhead[L]{\bfseries\leftmark}
+\fancyhead[R]{\bfseries\thepage}
+\renewcommand\headrulewidth{1pt}% suppress the header rule
+
+\usepackage{cleveref}
+\crefformat{equation}{eq.~#2#1#3}
+
+\usepackage[intoc,english]{nomencl}
+\usepackage{emptypage}
+\usepackage[toc,page]{appendix}

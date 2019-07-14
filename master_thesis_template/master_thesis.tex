@@ -1,0 +1,72 @@
+\immediate\write18{makeindex -s nomencl.ist -o "master_thesis.nls" "master_thesis.nlo"}
+
+% \documentclass[12pt,a4paper,twoside,openright]{book}
+\documentclass[12pt,a4paper,oneside]{book}
+\usepackage{graphicx}
+% \usepackage[paper=a4paper,inner=30mm,outer=30mm,top=30mm,bottom=40mm,bindingoffset=10mm]{geometry}
+\usepackage[paper=a4paper,inner=30mm,outer=30mm,top=30mm,bottom=40mm,bindingoffset=0mm]{geometry}
+\usepackage{etoolbox}
+\usepackage{./uni-bonn-style/thesisstyle}
+
+\newcommand{\ak}[1]{\textcolor{orange!80!black}{#1}}
+\newcommand{\akrm}[1]{{\color{orange!80!black}\sout{{#1}}}}
+\newcommand{\aklm}[1]{\marginpar{\flushleft\color{orange!80!black}{#1}}}
+
+
+\begin{document}
+
+\input{./front_matters/title}
+
+\makeatletter
+\let\newtitle\@title
+\let\newauthor\@authornew
+\let\newdate\@date
+\makeatother
+
+\frontmatter
+
+\maketitle
+
+\pagenumbering{roman}
+\setcounter{page}{1}
+\include{./chapters/0_abstract}
+\include{./front_matters/declaration}
+\include{./front_matters/acknowledgements}
+
+\renewcommand{\contentsname}{Table of contents}
+\tableofcontents
+\listoffigures
+\listoftables
+\listofalgorithms
+
+\renewcommand\nomgroup[1]{%
+  \item[\bfseries
+  \ifstrequal{#1}{D}{Probability distributions}{%
+  \ifstrequal{#1}{O}{Operators}{%
+  \ifstrequal{#1}{F}{Functions}{}}}%
+]}
+\renewcommand{\nomname}{List of Symbols}
+\markboth{\MakeUppercase\nomname}{\MakeUppercase\nomname}
+\makenomenclature
+\printnomenclature[4em]
+
+\mainmatter
+
+% Chapters
+\include{./chapters/1_introduction}
+\include{./chapters/2_background}
+\include{./chapters/3_voicemorph}
+\include{./chapters/4_results}
+\include{./chapters/5_conclusion}
+
+% Bibliography
+\clearpage
+\bibliography{bibliography}
+
+% Appendices
+\begin{appendices}
+    \include{./chapters/6_appendix_further_cdn_models}
+    \include{./chapters/7_appendix_further_results}
+\end{appendices}
+
+\end{document}

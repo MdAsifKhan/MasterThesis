@@ -1,0 +1,115 @@
+%!TEX root = ../master_thesis.tex
+\chapter{Unsupervised Cross Domain Adaptation}
+\label{ch:unvc}
+In previous chapter we discussed the recent development of GANs and their application for domain adaptation. Following our discussion of Chapter~\ref{ch:introduction} here we propose our work of domain adaptation of speech signals using GANs. We will start our discussion with a introduction to the problem and we will formulate it specifically in the setting of UNIT framework discussed in~\ref{??}. 
+
+\section{Problem Definition}
+\label{sec:prob_defn}
+Consider $X$ and $Y$ be two domains representing \texttt{male} and \texttt{female} speakers. For a given $x\in X$ our objective is to find the corresponding $y\in Y$. The is achieved by shared space assumption. Specifically, for any such pair $(x,y)$ there exist a $z\in \mathcal{Z}$ which can represent both domains. In our task $\mathcal{Z}$ is interpreted as a shared semantic space of a voice sample of male and female speaker. This should encode domain independent information like the linguistic features of the paired voice samples. 
+
+To obtain such a shared space $\mathcal{Z}$ we define parametric functions $E_x$, $E_y$, $G_x$, $G_y$ such that, for any corresponding pair $(x,y)$ we assume we can obtain $z=E_x(x)=E_y(y)$, $x=G_x(z)$ and $y=G_y(z)$. To implement this $E_x$ and $E_y$ are modeled as a multi-layered NN where the corresponding last layers are defined to share parameters. This is ensured by decomposing the two networks $E_x$ and $E_y$ as $E_x = E_h\circ E_{\tilde{x}}$ and $E_y = E_h\circ E_{\tilde{y}}$, where $E_h$ is a shared parametric transformation mapping to $\mathcal{Z}$ and $E_{\tilde{x}}$, $E_{\tilde{y}}$ are domain specific encoders.
+The shared space already implies cycle consistency discussed in Section~\ref{subsec:cgan}. To further regularize and improve the model we also define the cycle consistency loss as explained in Section~\ref{subsec:unit_gan}.
+
+Having learned such transformation for any $x\in X$ and $y\in Y$ we can obtain corresponding cross domain translation by compositional mapping $y = G_y(E_x(x))$ and $x = G_x(E_y(y))$. 
+
+Following~\cite{zhu2017unpaired} we implement parametric functions as a VAE-GAN. The pair $(E_x,G_x)$ and $(E_y, G_y)$ are implemented as a VAE generator networks with $D_x$ and $D_y$ as corresponding discriminator networks. The full optimization problem is expressed as:
+
+\begin{equation}
+    \begin{aligned}
+        E_x^\ast, E_y^\ast, G_x^\ast, G_y^\ast, D_x^\ast, D_y^\ast =& \argmin_{E_x,G_x,E_y,G_y} \max_{D_x, D_y} V_\text{VAE} (E_x,G_x,X,Y) +  V_\text{GAN} (E_y,G_x,D_x,X,Y) \\ 
+        &+ V_\text{VAE} (E_y,G_y,X,Y) +  V_\text{GAN} (E_x,G_y,D_y,X,Y)\\
+        &+  V_\text{cyc}(E_1,G_1,E_2,G_2)\\
+    \end{aligned}
+    \label{eq:loss_unit}
+\end{equation}
+
+
+The full architecture detail is discussed in Section~\ref{sec:network_details}.
+
+
+\section{Voice Conversion}
+\label{sec:voice_conv}
+In the context of our work we formulate domain adaptation task to translate voice of male speakers to female speakers and vice versa. In previous Section~\ref{sec:prob_defn} we described it as a learning problem. In this section we will look into details of our implementation. 
+
+We use time frequency representation of speech signals to train the above networks. In Section~\ref{subsec:timefreq_rep} we looked at the STFT a commonly used transformation for time-frequency representation. The STFT provides two representation namely magnitude and phase spectrogram. In our discussion we looked at the two problems associated with STFT: (i) periodicity and discontinuity associated with phase representation which makes it difficult to use them with neural networks, (ii) modifying the spectrogram by applying transformation like passing through NNs effects its consistency which makes its difficult to reconstruct the corresponding time domain signal.  
+
+For above two reason, we split our experiments in two setups. In first, we work with magnitude representation and define a spectrogram consistency loss. This further constraint the generator to generate consistent spectrograms. In the later part we work with full spectrogram representation. Instead of using raw phase we transform it to instantaneous frequency (IF) representation. Since the transformation is invertible we can get back the original phase and obtain full spectrogram. 
+
+\subsection{Magnitude Representation}
+\label{subsec:mag_gen}
+Following our discussion in Section~\ref{subsec:timefreq_rep} we work with magnitude representation on four different scale: Magnitude spectrogram, Log magnitude spectrogram, Mel spectrogram and Log Mel spectrogram. The Log scale enhances low frequency components which we assu
+
+
+We constraint our generator such that we obtain
+
+One critical requirement for the inversion of the STFT transformation is the consistency of spectrogram. It is usually ensured by taking overlapping time frames  in windowing operation.  
+One critical requirement to reconstruct the time domain signal from modified representation is the consistency.
+
+
+
+\subsection{Full Spectrogram Generation}
+\label{subsec:fsg}
+In the second set of experiments we trained our network to learn full spectrogram representation. As discussed in Section~\ref{subsec:fsg} we use IF representation of phase. 
+
+ We use instantaneous frequency (IF) representation of a signal this is mainly due to the problems discussed in Section~\ref{??}. When working with full spectrogram we limit our discussion to magnitude and log magnitude scale. This is mainly due to the lack of understanding of Mel representation of IF. 
+
+\subsection{Dataset and Preprocessing}
+\label{subsec:data_step}
+\subsubsection{Dataset}
+In this work we use LibriSpeech~\cite{panayotov2015librispeech} corpora for experimentation. LibriSpeech corpus is obtained from reading of English audio books read by native speakers. It is a standard corpus used for the evaluation of ASR systems. Th corpus consists of several subsets created on the basis of word error rate (WER). The WER is a quality measure of speech to text systems. It is computed by transcribing speech and comparing it with the
+reference transcripts obtained from the book texts. In this work we use \texttt{train-clean-100} for the purpose of training and \texttt{test-clean} for the purpose of evaluation. The ``clean" suffix is associated with the low WER implicating the high quality of speech signals. In Table~\ref{tab:data_stat} we list the statistics of the dataset. 
+
+\begin{table}[]
+    \centering
+    \begin{tabular}{c|cc}
+    \toprule
+    \textbf{Dataset} & \multicolumn{2}{c}{\textbf{LibriSpeech}}\\
+    \cmidrule{2-3}
+        & \textbf{Train} & \textbf{Test} \\
+    \midrule
+        Sampling Rate & 16 kHz & 16 kHz\\
+        Total Duration &  100.6 hrs. & 5.4 hrs\\
+        Per Spk. Duration & 25 min. & 8 min.\\
+        Female Speakers & 125 & 20\\
+        Male Speakers & 126 & 20\\
+        No. of Speakers & 251 & 40\\
+    \end{tabular}
+    \caption{Data Statistics}
+    \label{tab:data_stat}
+\end{table}
+
+
+
+\subsubsection{Preprocessing}
+\label{subsec:preprocess}
+As part of this thesis we work with time-frequency representation of speech signal. 
+
+For time frequency features, we use librosa~\cite{??} package available in python. The configuration to compute STFT is further listed in Table~\ref{tab:stft}. 
+
+
+
+%\ref{tab:stft}
+
+\begin{table}[]
+    \centering
+    \begin{tabular}{c|c}
+    \toprule
+    \textbf{Parameters} & \textbf{Value}\\
+    \midrule
+         N-FFT&  512\\
+         Hop-length& 128\\
+         window& hanning\\
+         window-size& 512\\
+    \bottomrule     
+    \end{tabular}
+    \caption{STFT Configuration}
+    \label{tab:stft}
+\end{table}
+\subsection{Network Details}
+\label{sec:network_details}
+The network architecture used in our experiments is based on UNIT~\cite{zhu2017unpaired}. The two generators are VAE given by pair of encoder and decoder network $(E_1,G_1)$ and $(E_2,G_2)$. The encoder network consists of ?? resnet blocks with convolution filters of size $?\times?$ followed with convolution layers of size $??$. In the decoder network we use upsampling followed with $?$ convolutional layers of size $?\times ?$. The two discriminators are multilayered resnet network. We use
+\subsection{Training Procedure}
+
+\subsection{Postprocessing}
+
+
