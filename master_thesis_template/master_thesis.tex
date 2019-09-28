@@ -7,6 +7,9 @@
 \usepackage[paper=a4paper,inner=30mm,outer=30mm,top=30mm,bottom=40mm,bindingoffset=0mm]{geometry}
 \usepackage{etoolbox}
 \usepackage{./uni-bonn-style/thesisstyle}
+\usepackage{todonotes}
+\usepackage{color,soul}
+\usepackage[shortlabels]{enumitem}
 
 \newcommand{\ak}[1]{\textcolor{orange!80!black}{#1}}
 \newcommand{\akrm}[1]{{\color{orange!80!black}\sout{{#1}}}}
@@ -64,9 +67,8 @@
 \bibliography{bibliography}
 
 % Appendices
-\begin{appendices}
-    \include{./chapters/6_appendix_further_cdn_models}
-    \include{./chapters/7_appendix_further_results}
-\end{appendices}
+%\begin{appendices}
+%    \include{./chapters/6_appendix_further_results}
+%\end{appendices}
 
 \end{document}

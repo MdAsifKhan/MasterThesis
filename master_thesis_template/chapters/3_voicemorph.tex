@@ -1,70 +1,160 @@
 %!TEX root = ../master_thesis.tex
-\chapter{Unsupervised Cross Domain Adaptation}
+\chapter{Cross-domain Speech-to-Speech Synthesis}
 \label{ch:unvc}
-In previous chapter we discussed the recent development of GANs and their application for domain adaptation. Following our discussion of Chapter~\ref{ch:introduction} here we propose our work of domain adaptation of speech signals using GANs. We will start our discussion with a introduction to the problem and we will formulate it specifically in the setting of UNIT framework discussed in~\ref{??}. 
+In the previous chapter, we discussed the recent developments of GANs and their applications to the domain translation for images. Following our discussion in Chapter~\ref{ch:introduction}, in this chapter we propose our work on unsupervised cross-domain speech-to-speech synthesis. We will start our discussion with an introduction to the problem. We will then formulate it specifically in the setting of the unsupervised image-to-image translation network previously discussed in Section~\ref{subsec:unit_gan}. 
 
-\section{Problem Definition}
+We use the time-frequency representation of speech signals to train the network. We use the STFT transformation to obtain the time-frequency representation. In Chapter~\ref{ch:introduction} we discussed the problem of time-domain waveform reconstruction from the modified or generated time-frequency representation. In this chapter, we present our solution to the problem. We utilize the consistency condition of the time-frequency representation to constrain the optimization problem of the GAN. The time-frequency representation comprises of two parts namely the magnitude and phase spectrogram. We propose two experimental setups. In the first one, we use the consistency condition of the magnitude-spectrogram for training the network and at inference time we use the Griffin-Lim algorithm (GLA) to reconstruct the time-domain speech waveform. In the second one, we use the full time-frequency representation for training the network. Furthermore, at inference time we straightaway perform the ISTFT operation on the time-frequency representation to obtain the time-domain waveform and thus avoid the computational cost incurred by the GLA.
+ 
+\section{Speech-to-Speech Synthesis}
+\label{sec:voice_conv}
+In the context of our work, we formulate domain translation as the task to translate the voice of male speakers to female speakers and vice versa. In Section~\ref{sec:prob_defn} we formulate it as a learning problem. In Section~\ref{sec:prob_defn} we discuss the details of our implementation. Finally, in Section~\ref{sec:network_details}, we discuss the full architecture of the network.
+
+\subsection{Problem definition}
 \label{sec:prob_defn}
-Consider $X$ and $Y$ be two domains representing \texttt{male} and \texttt{female} speakers. For a given $x\in X$ our objective is to find the corresponding $y\in Y$. The is achieved by shared space assumption. Specifically, for any such pair $(x,y)$ there exist a $z\in \mathcal{Z}$ which can represent both domains. In our task $\mathcal{Z}$ is interpreted as a shared semantic space of a voice sample of male and female speaker. This should encode domain independent information like the linguistic features of the paired voice samples. 
+Consider $\mathcal{X}_1$ and $\mathcal{X}_2$ be two domains representing \texttt{male} and \texttt{female} speakers. For a speech sample $x_1\in \mathcal{X}$ our objective is to find the corresponding sample $x_2\in \mathcal{X}_2$. In our work, we achieve this under the shared space assumption. Specifically, for any pair $(x_1,x_2)$ we assume there exists a $z\in \mathcal{Z}$ which can represent a pair of samples across two domains. In our task $\mathcal{Z}$ is interpreted as a shared space of a voice sample of a male and female speaker. This should encode domain independent information. For instance, linguistic features of the paired voice samples and the phonetic variations of speakers. 
 
-To obtain such a shared space $\mathcal{Z}$ we define parametric functions $E_x$, $E_y$, $G_x$, $G_y$ such that, for any corresponding pair $(x,y)$ we assume we can obtain $z=E_x(x)=E_y(y)$, $x=G_x(z)$ and $y=G_y(z)$. To implement this $E_x$ and $E_y$ are modeled as a multi-layered NN where the corresponding last layers are defined to share parameters. This is ensured by decomposing the two networks $E_x$ and $E_y$ as $E_x = E_h\circ E_{\tilde{x}}$ and $E_y = E_h\circ E_{\tilde{y}}$, where $E_h$ is a shared parametric transformation mapping to $\mathcal{Z}$ and $E_{\tilde{x}}$, $E_{\tilde{y}}$ are domain specific encoders.
-The shared space already implies cycle consistency discussed in Section~\ref{subsec:cgan}. To further regularize and improve the model we also define the cycle consistency loss as explained in Section~\ref{subsec:unit_gan}.
+To obtain a shared space $\mathcal{Z}$, we define parametric functions $E_1$, $E_2$, $G_1$, $G_2$ such that, for a corresponding pair $(x_1,x_2)$ we assume there exist a latent representation $z$ such that $x_1=G_1(z)$ and $x_2=G_2(z)$. To implement this $E_1$ and $E_2$ are modeled as multi-layered residual networks where the corresponding last layers share parameters. Specifically, this is done by decomposing two encoder networks $E_1$ and $E_2$ as $E_1 = E_h\circ E_{\tilde{1}}$ and $E_2 = E_h\circ E_{\tilde{2}}$, where $E_{\tilde{1}}$, $E_{\tilde{2}}$ are domain specific encoders and $E_h$ is a shared parametric transformation mapping to the latent space $\mathcal{Z}$.
+The shared space assumption already implies cycle consistency as discussed in Section~\ref{subsec:cgan}. To further regularize and constrain the model we define the cycle consistency loss as explained in Section~\ref{subsec:unit_gan}.
 
-Having learned such transformation for any $x\in X$ and $y\in Y$ we can obtain corresponding cross domain translation by compositional mapping $y = G_y(E_x(x))$ and $x = G_x(E_y(y))$. 
-
-Following~\cite{zhu2017unpaired} we implement parametric functions as a VAE-GAN. The pair $(E_x,G_x)$ and $(E_y, G_y)$ are implemented as a VAE generator networks with $D_x$ and $D_y$ as corresponding discriminator networks. The full optimization problem is expressed as:
+At the time of inference, for any $x_1\in \mathcal{X}_1$ or $x_2\in \mathcal{X}_2$ we can obtain the corresponding cross domain translation by the compositional mapping $x_{1\rightarrow2} = G_2(E_1(x_1))$ or $x_{2\rightarrow1} = G_1(E_2(x_2))$. We implement parametric functions as a VAE-GAN. Specifically, the pairs $(E_1,G_1)$ and $(E_2, G_2)$ are implemented as VAE generator networks. To obtain a better quality of the cross domain translation the VAEs are optimized in an adversarial setup. Specifically, we define two discriminators $D_1$ and $D_2$ where $D_1$ discriminates between fake female-to-male samples and original male samples. Likewise, $D_2$ discriminates between fake male-to-female samples and original female samples. The full optimization problem is expressed as:
 
 \begin{equation}
+\scalebox{0.9}{
     \begin{aligned}
-        E_x^\ast, E_y^\ast, G_x^\ast, G_y^\ast, D_x^\ast, D_y^\ast =& \argmin_{E_x,G_x,E_y,G_y} \max_{D_x, D_y} V_\text{VAE} (E_x,G_x,X,Y) +  V_\text{GAN} (E_y,G_x,D_x,X,Y) \\ 
-        &+ V_\text{VAE} (E_y,G_y,X,Y) +  V_\text{GAN} (E_x,G_y,D_y,X,Y)\\
-        &+  V_\text{cyc}(E_1,G_1,E_2,G_2)\\
-    \end{aligned}
+        E_1^\ast, E_2^\ast, G_1^\ast, G_2^\ast, D_1^\ast, D_2^\ast =& \argmin_{E_1,G_1,E_2,G_2} \max_{D_1, D_2} V_\text{VAE} (E_1,G_1,\mathcal{X}_1,\mathcal{X}_2) +  V_\text{GAN} (E_2,G_1,D_1,\mathcal{X}_1,\mathcal{X}_2) \\ 
+        &+ V_\text{VAE} (E_2,G_2,\mathcal{X}_1,\mathcal{X}_2) +  V_\text{GAN} (E_1,G_2,D_2,\mathcal{X}_1,\mathcal{X}_2)\\
+        &+  V_\text{cyc}(E_1,G_1,E_2,G_2,\mathcal{X}_1,\mathcal{X}_2)\\
+    \end{aligned}}
     \label{eq:loss_unit}
 \end{equation}
 
 
-The full architecture detail is discussed in Section~\ref{sec:network_details}.
-
-
-\section{Voice Conversion}
-\label{sec:voice_conv}
-In the context of our work we formulate domain adaptation task to translate voice of male speakers to female speakers and vice versa. In previous Section~\ref{sec:prob_defn} we described it as a learning problem. In this section we will look into details of our implementation. 
-
-We use time frequency representation of speech signals to train the above networks. In Section~\ref{subsec:timefreq_rep} we looked at the STFT a commonly used transformation for time-frequency representation. The STFT provides two representation namely magnitude and phase spectrogram. In our discussion we looked at the two problems associated with STFT: (i) periodicity and discontinuity associated with phase representation which makes it difficult to use them with neural networks, (ii) modifying the spectrogram by applying transformation like passing through NNs effects its consistency which makes its difficult to reconstruct the corresponding time domain signal.  
-
-For above two reason, we split our experiments in two setups. In first, we work with magnitude representation and define a spectrogram consistency loss. This further constraint the generator to generate consistent spectrograms. In the later part we work with full spectrogram representation. Instead of using raw phase we transform it to instantaneous frequency (IF) representation. Since the transformation is invertible we can get back the original phase and obtain full spectrogram. 
-
-\subsection{Magnitude Representation}
+\subsection{Magnitude Spectrogram Generation}
 \label{subsec:mag_gen}
-Following our discussion in Section~\ref{subsec:timefreq_rep} we work with magnitude representation on four different scale: Magnitude spectrogram, Log magnitude spectrogram, Mel spectrogram and Log Mel spectrogram. The Log scale enhances low frequency components which we assu
+As discussed in Section~\ref{subsec:timefreq_rep}, we work with four different scales of the magnitude spectrogram: magnitude, log magnitude, mel, and log mel. The log scale enhances the lower frequency components related to the perceptual quality of the waveform to human ears. Likewise, the mel scale transforms the real frequency to the perceived frequency enhancing components relating to the perceptual nature of sound.
+For details, we refer to our discussion in Section~\ref{subsec:timefreq_rep}.
+
+\subsubsection{Spectrogram Consistency Loss}
+\label{subsec:spec_con_loss}
+In Section~\ref{subsec:phrecon} we looked at the problem associated with the usage of the magnitude spectrogram for training neural networks. The chain of transformation applied by a neural network on a magnitude spectrogram does not preserve the overlap factor used in the STFT operation. Since the STFT provides an overcomplete representation, to reconstruct a coherent waveform from a modified magnitude spectrogram representation requires the right combination of phase and magnitude at each frequency bin. As a consequence, the waveform reconstruction is considered as an ill-posed problem. 
+
+The GLA discussed in Section~\ref{subsec:gla} is a popular technique used for estimating the closest waveform from the magnitude spectrogram. The GLA estimates the unknown phase by iteratively performing ISTFT and STFT operation to project the spectrogram between the time and frequency domain and thus minimizing the projection error. A critical requirement for the convergence of the GLA is the consistency of the spectrogram representation, that is if there is a valid time-domain waveform associated with the spectrogram. For a spectrogram of the original signal, this consistency is guaranteed by the sufficient overlap factor in the STFT transformation. However, for a generated spectrogram, it is not clear if there is any corresponding time-domain waveform. For details we refer to our discussion in Section~\ref{subsec:spec_con}.
+
+In \citet{auger2012phase} the authors proposed a relationship between the phase and magnitude part of the spectrogram. Furthermore, they exploit the relationship and derive a necessary condition for the consistency of any log magnitude matrix $\log (\hat{M}_{\hat{g}}(x,\omega))$, which for a Gaussian window under the STFT operation is given by following equation:
+\begin{equation}
+    \label{eq:mag_con}
+    (\lambda\frac{\partial^2}{\partial x^2} +   \lambda^{-1}\frac{\partial^2}{\partial \omega^2}) \log (\hat{M}_{\hat{g}}(x,\omega)) = - 2 \pi
+\end{equation}
+
+Equation~\ref{eq:mag_con} resembles the 
+condition of analytic functions where
+the Laplacian of the log magnitude matrix $\log (\hat{M}_{\hat{g}}(x,\omega))$ is constant. Thus, the consistency of the spectrogram could be interpreted as finding the analytic space of spectrograms. For further details we recommend \cite{auger2012phase}.
 
 
-We constraint our generator such that we obtain
+The discrete version of Equation~\ref{eq:mag_con} for the log magnitude matrix $\log (\hat{M}_{\hat{g}}[m,n])$
+under the Gaussian window $g$ is approximated as
+\begin{equation}
+    \label{eq:mag_con_discrete}
+    (\frac{\lambda}{a^2}\frac{\partial^2}{\partial n^2} +   K^2\lambda^{-1}\frac{\partial^2}{\partial m^2}) \log (\hat{M}_{\hat{g}}[m, n]) \approx - 2 \pi
+\end{equation}
+where $a$ is the stride length, $K$ is the number of frequency bins, $n$ is the time axis and $m$ is the frequency axis in the STFT matrix.
 
-One critical requirement for the inversion of the STFT transformation is the consistency of spectrogram. It is usually ensured by taking overlapping time frames  in windowing operation.  
-One critical requirement to reconstruct the time domain signal from modified representation is the consistency.
+\citet{marafiotiadversarial} proposed a loss term for the adversarial generation of the spectrogram exploiting the consistency condition in Equation~\ref{eq:mag_con_discrete}. Equation~\ref{eq:mag_con_discrete} is prone to the approximation error which is proportional to the overlap in the STFT operation. \cite{marafiotiadversarial} define a variant of a measure inspired by the Pearson correlation and further support it by extensive empirical results. 
+To define a measure formally, consider $\tilde{M}$ to be a generated magnitude spectrogram. Then the consistency $\rho (\tilde{M})$ of $\tilde{M}$ is given as
+\begin{flalign}
+\rho (\tilde{M}) = r(\text{DM}_n, \text{DM}_m),\\
+\text{DM}_n = \left\lvert \partial_n^2 \tilde{M} + \frac{\pi a^2}{\lambda} \right\rvert,\\
+\text{DM}_m = \left\lvert \partial_m^2 \tilde{M} + \frac{\pi \lambda}{K^2} \right\rvert,
+\end{flalign}
+where $r(x,y)$ is the sample Pearson correlation coefficent of a paired set of samples $(x,y)$. If the spectrogram is consistent Equation~\ref{eq:mag_con_discrete} holds and $\rho (\tilde{M})\approx 1$. Likewise, $\rho (\tilde{M})\approx 0$ for an inconsistent spectrogram.  Extending this idea to GANs the consistency loss for adversarial training is defined as
+\begin{equation}
+    \label{eq:con_loss_gan}
+    \gamma = \left\lvert \mathbb{E}_{\hat{M}\sim p_{\hat{M}_\text{real}}} [\rho (\hat{M})]   - \mathbb{E}_{\hat{M}\sim p_{\hat{M}_\text{fake}}} [\rho (\hat{M}) ] \right\rvert
+\end{equation}
+where $p_{\hat{M}_\text{real}}$ represents the probability distribution of real spectrograms and $p_{\hat{M}_\text{fake}}$ represents the probability distribution of fake spectrograms. As $\gamma$ approaches zero the consistency term $\rho (\tilde{M})$ will approach 1. Thus, adding $\gamma$ as a constraint to the GAN loss will restrict the network to generate consistent spectrograms. For further details we refer to \citet{marafiotiadversarial}.
+
+Following the above formulation, we define the spectrogram consistency loss in our speech-to-speech synthesis framework. For a source spectrogram $x_1\in \mathcal{X}_1$ we define the consistency of the cross-domain spectrogram  $x_2=G_2(E_1(x_1))$ as $\gamma_{x_2}$. Conversely, we also define $\gamma_{x_1}$ and the final consistency term is given by $\gamma$ as:
+
+\begin{flalign}
+    \label{eq:con_loss_gan}
+    \gamma_{x_2} = \left\lvert \mathbb{E}_{x_2\sim p_{\mathcal{X}_2}} [\rho (x_2)]   - \mathbb{E}_{x_1\sim p_{\mathcal{X}_1}} [\rho (G_2(E_1(x_1)) ] \right\rvert,  \\
+    \gamma_{x_1} = \left\lvert \mathbb{E}_{x_1\sim p_{\mathcal{X}_1}} [\rho (x_1)]   - \mathbb{E}_{x_2\sim p_{\mathcal{X}_2}} [\rho (G_1(E_2(x_2)) ] \right\rvert,  \\
+    \gamma = \gamma_{x_1} + \gamma_{x_2} \qquad \qquad \qquad \quad
+\end{flalign}
+
+
+
+We add $\lambda \cdot \gamma$ to our optimization problem given in Equation~\ref{eq:loss_unit}, where $\lambda$ is a hyperparameter to control the contribution of the consistency loss. Since the consistency relation in Equation~\ref{eq:mag_con_discrete} only holds for the magnitude and log magnitude spectrogram we omit the experiments for the mel scale representation.
 
 
 
 \subsection{Full Spectrogram Generation}
 \label{subsec:fsg}
-In the second set of experiments we trained our network to learn full spectrogram representation. As discussed in Section~\ref{subsec:fsg} we use IF representation of phase. 
+In the second setup, we trained our network utilizing the full spectrogram representation. As a consequence, at inference time we avoid the use of an iterative algorithm and straightaway use the ISTFT operation to reconstruct the time domain speech waveform. This further helps to avoid additional computational costs and results in a robust inference. Since the jump discontinuities in the phase spectrogram make it difficult to interpret the perceptual nature of sound we transform the phase spectrogram into the instantaneous frequency (IF) representation. The IF is obtained by first unwrapping the phase along the time axis and then taking the finite difference along the frequency axis. The unwrapping of the phase is helpful to avoid the jump discontinuities which makes the IF a plausible choice over the phase spectrogram. For the full spectrogram, we limit our discussion to the magnitude and log magnitude scale. This is mainly due to the lack of an interpretation of the mel representation of the IF. 
 
- We use instantaneous frequency (IF) representation of a signal this is mainly due to the problems discussed in Section~\ref{??}. When working with full spectrogram we limit our discussion to magnitude and log magnitude scale. This is mainly due to the lack of understanding of Mel representation of IF. 
 
-\subsection{Dataset and Preprocessing}
+%Due to challenges associated with interpretation of phase spectrogram we use IF representation of phase. For details we refer to our discussion on introduction chapter~\ref{ch:introduction}.
+
+\subsubsection{Spectrogram Consistency Loss}
+\label{subsec:gl_spec_con}
+%In our discussion in Section~\ref{subsec:spec_con} we looked at the problem associated in reconstructing waveform from a magnitude
+The full spectrogram is a matrix of complex numbers. We further express it in polar coordinates which is composed of two parts magnitude and phase representation. As previously discussed in Section~\ref{subsec:spec_con}, for any spectrogram $W$ to be consistent it should be in a null space of the operator $\mathcal{F}$, that is to say $\mathcal{F}(W)=0$. Since in this experiment, we reconstruct the full spectrogram instead of using the phase-magnitude relationship discussed in Section~\ref{subsec:spec_con_loss} here we directly exploit the projection error introduced in Section~\ref{subsec:spec_con}.
+
+Consider $x_1\in \mathcal{X}_1$ and $x_2\in \mathcal{X}_2$ be two unpaired full spectrograms in two domains. Let $\hat{M}_{x_1}$ and $\hat{P}_{x_1}$ be the magnitude and IF part of a sample $x_1$ likewise $\hat{M}_{x_2}$ and  $\hat{P}_{x_2}$ be the magnitude and IF part of a sample $x_2$. The reconstruction consistency loss for two generators is defined as $\gamma_{\text{gen}}$
+\begin{flalign}
+    \label{eq:reconfullcon1}
+    \hat{M}_{\tilde{x}_1}, \hat{P}_{\tilde{x}_1} = G_1 \circ E_1(\hat{M}_{x_1}, \hat{P}_{x_1}), \quad      \hat{M}_{\tilde{x}_2}, \hat{P}_{\tilde{x}_2} = G_2 \circ E_2(\hat{M}_{x_2}, \hat{P}_{x_2}), \qquad \\
+    \label{eq:reconfullcon2}
+    \tilde{M}_{x_1},\tilde{P}_{x_1} = \text{STFT}(\text{ISTFT}(\hat{M}_{x_1}, \hat{P}_{\tilde{x}_1})), \quad  \tilde{M}_{x_2},\tilde{P}_{x_2} = \text{STFT}(\text{ISTFT}(\hat{M}_{x_2}, \hat{P}_{\tilde{x}_2)})), \qquad\\
+    \label{eq:reconfullcon3}
+    \gamma_{x_1} = w_1 \| \tilde{M}_{x_1} - \hat{M}_{x_1} \|_1 + (1-w_1) \| \tilde{P}_{x_1} - \hat{P}_{x_1} \|_1, \qquad \\
+    \label{eq:reconfullcon4}
+    \gamma_{x_2} = w_2 \| \tilde{M}_{x_2} - \hat{M}_{x_2} \|_1 + (1-w_2) \| \tilde{P}_{x_2} - \hat{P}_{x_2} \|_1, \qquad \\
+    \label{eq:reconfullcon5}
+    \gamma_{\text{gen}} = \gamma_{x_1} + \gamma_{x_2} \qquad \qquad \qquad \qquad \qquad
+\end{flalign}
+    %\hat{M}_{xyx}, \hat{P}_{xyx} = G_x \circ E_y \circ G_y \circ E_x(\hat{M}_x, \hat{P}_x)
+where $w_1$  and $w_2$ are additional hyperparmeters controling the contribution of the magnitude and phase loss.
+Equation~\ref{eq:reconfullcon2} is essentially a single iteration of the GLA applied to the generated spectrogram. 
+%The magnitude part is relatively sparse compared to phase representation. We take this factor into account and take the weighted sum of loss term in Equation (3.13) and (3.14). 
+Since we do not have any ground truth spectrograms for the cross-domain translation, to ensure consistency we define a cyclic loss term $\gamma_{\text{cyc}}$ as follows:
+
+\begin{flalign}
+    \label{eq:fullcon1}
+    \hat{M}_{\tilde{x}_1}, \hat{P}_{\tilde{x}_1} = G_1 \circ E_2 \circ G_2 \circ E_1(\hat{M}_{x_1}, \hat{P}_{x_1}), \enskip \hat{M}_{\tilde{x}_2}, \hat{P}_{\tilde{x}_2} = G_2 \circ E_1 \circ G_1 \circ E_2(\hat{M}_{x_2}, \hat{P}_{x_2}), \\
+    \label{eq:fullcon2}
+    \tilde{M}_{x_1},\tilde{P}_{x_1} = \text{STFT}(\text{ISTFT}(\hat{M}_{x_1}, \hat{P}_{\tilde{x}_1})), \quad  \tilde{M}_{x_2},\tilde{P}_{x_2} = \text{STFT}(\text{ISTFT}(\hat{M}_{x_2}, \hat{P}_{\tilde{x}_2})),\\
+    \label{eq:fullcon3}
+    \gamma_{x_1} = w_1 \| \tilde{M}_{x_1} - \hat{M}_{x_1} \|_1 + (1-w_1) \| \tilde{P}_{x_1} - \hat{P}_{x_1} \|_1, \qquad \\
+    \label{eq:fullcon4}
+    \gamma_{x_2} = w_2 \| \tilde{M}_{x_2} - \hat{M}_{x_2} \|_1 + (1-w_2) \| \tilde{P}_{x_2} - \hat{P}_{x_2} \|_1, \qquad \\
+    \label{eq:fullcon5}
+    \gamma_{\text{cyc}} = \gamma_{x_1} + \gamma_{x_2} \qquad \qquad \qquad \qquad \qquad
+\end{flalign}
+
+The full consistency loss $\gamma$ is defined as
+\begin{equation}
+\gamma = \gamma_{\text{recon}} + \gamma_{\text{cyc}}    
+\end{equation}
+
+Similar to the previous case we constrain the optimization problem given in Equation~\ref{eq:loss_unit} with an additional loss term $\lambda \cdot \gamma$ where $\lambda$ is a hyperparameter to control the contribution of consistency loss.
+
+In our experiments in Section~\ref{sec:discussion}, we observed the quality of magnitude spectrogram starts degrading after $10,000$ iterations. We attribute this to the sparse nature of the magnitude spectrogram compared to the dense nature of the IF. We hypothesize that due to this the loss contribution of the IF starts dominating the contribution of the magnitude thus degrading the quality of the magnitude. To address this problem, we consider the weighted combination of the magnitude and phase loss term in Equation~\ref{eq:reconfullcon3} and~\ref{eq:reconfullcon4} as well as in Equation~\ref{eq:fullcon3} and~\ref{eq:fullcon4}.
+%The one discriminator acts as a critic for magnitude spectrogram and the other one for full spectrogram.
+
+\section{Experimental Setup}
 \label{subsec:data_step}
-\subsubsection{Dataset}
-In this work we use LibriSpeech~\cite{panayotov2015librispeech} corpora for experimentation. LibriSpeech corpus is obtained from reading of English audio books read by native speakers. It is a standard corpus used for the evaluation of ASR systems. Th corpus consists of several subsets created on the basis of word error rate (WER). The WER is a quality measure of speech to text systems. It is computed by transcribing speech and comparing it with the
-reference transcripts obtained from the book texts. In this work we use \texttt{train-clean-100} for the purpose of training and \texttt{test-clean} for the purpose of evaluation. The ``clean" suffix is associated with the low WER implicating the high quality of speech signals. In Table~\ref{tab:data_stat} we list the statistics of the dataset. 
+\subsection{Dataset}
+We use the LibriSpeech corpora (\cite{panayotov2015librispeech}) for our experimentation. The LibriSpeech corpora are obtained from English audiobooks read by native English speakers. They are standard corpora used for the evaluation of ASR systems. The corpora consist of several subsets created based on the word error rate (WER). The WER is a quality measure for speech to text systems. It is computed by transcribing speech and comparing it with the reference transcripts obtained from the text of the book. In this work we use \texttt{train-clean-100} for the purpose of training and \texttt{test-clean-100} for the purpose of evaluation. The ``clean" suffix is associated with the low WER implying the high quality of speech signals. 
+%The training set of LibriSpeech \texttt{train-clean-100} contains $100.6$ hrs. of recording of $251$ speakers. 
+In Table~\ref{tab:data_stat} we list the statistics of the dataset. 
 
 \begin{table}[]
     \centering
-    \begin{tabular}{c|cc}
+    \begin{tabular}{ccc}
     \toprule
-    \textbf{Dataset} & \multicolumn{2}{c}{\textbf{LibriSpeech}}\\
-    \cmidrule{2-3}
+   % \textbf{Dataset} & \multicolumn{2}{c}{\textbf{LibriSpeech}}\\
+    %\cmidrule{2-3}
         & \textbf{Train} & \textbf{Test} \\
     \midrule
         Sampling Rate & 16 kHz & 16 kHz\\
@@ -73,26 +163,31 @@ reference transcripts obtained from the book texts. In this work we use \texttt{
         Female Speakers & 125 & 20\\
         Male Speakers & 126 & 20\\
         No. of Speakers & 251 & 40\\
+    \bottomrule
     \end{tabular}
-    \caption{Data Statistics}
+    \caption{Data Statistics of LibriSpeech Corpus}
     \label{tab:data_stat}
 \end{table}
 
 
 
-\subsubsection{Preprocessing}
+\subsection{Preprocessing}
 \label{subsec:preprocess}
-As part of this thesis we work with time-frequency representation of speech signal. 
+The speech files in the LibriSpeech dataset are of varying length. To train our network we work with the fixed-length representation. We split each speech file into segments of $4$ seconds. If any segment is smaller than $4$ seconds we pad it with zeros in the end. This way, we end up with $48,301$ samples of female and $48,139$ samples of male voice data. We further apply the STFT transformation to obtain the time-frequency representation of all samples. For STFT we use the librosa Python package\footnote{\url{https://github.com/librosa/librosa}} (\cite{mcfee2015librosa}). The configuration used for the STFT is further listed in Table~\ref{tab:stft}. Since speech signals are bandlimited signal, we trim the representation at the Nyquist frequency and pad the time axis. Finally, we obtain two matrix representations of shape $(500,256)$ of the magnitude spectrogram and phase spectrogram, where $500$ is the number of time steps and $256$ is the frequency bin. 
 
-For time frequency features, we use librosa~\cite{??} package available in python. The configuration to compute STFT is further listed in Table~\ref{tab:stft}. 
+In the first part of the experiment, we use the magnitude spectrogram on different scales. For the mel scale, we define $128$ mel filters and apply them on the linear magnitude matrix. This provides the mel representation of shape $(500,128)$ where entries in columns are the response of respective mel filters. Since the transformation to the mel scale is not invertible we take pseudo-inverse of mel filterbank to approximate the inverse linear transformation, which interestingly has a negligible effect on the perceptual quality of speech. In the second part we use a full spectrogram representation. We transform the phase to the IF by first unwrapping the phase over the time axis and then taking the finite difference along the same axis. We represent the magnitude and IF spectrum together as an image with $2$ channels of shape $(500,256,2)$. 
 
+In the last layer of generator networks, we use \texttt{tanh} as a non-linearity. To match the output of \texttt{tanh} we scale the coefficient matrix to the range $[-1,1]$. Unlike the image, the maximum value of spectrogram coefficients varies from waveform to waveform. To consider this effect we first scale each spectrogram with the maximum value and then scale it to range  $[-1,1]$. The scaling by the maximum also ensures the input samples have same loudness range. 
 
+%The block diagram in Figure~\ref{??} further illustartes all the steps involved in preprocessing. 
+
+Likewise, we also apply the above steps on our test set of $40$ speakers present in \texttt{test-other-100}. We end up with $2,703$ samples each of female and male speakers.
 
 %\ref{tab:stft}
 
 \begin{table}[]
     \centering
-    \begin{tabular}{c|c}
+    \begin{tabular}{cc}
     \toprule
     \textbf{Parameters} & \textbf{Value}\\
     \midrule
@@ -107,9 +202,67 @@ For time frequency features, we use librosa~\cite{??} package available in pytho
 \end{table}
 \subsection{Network Details}
 \label{sec:network_details}
-The network architecture used in our experiments is based on UNIT~\cite{zhu2017unpaired}. The two generators are VAE given by pair of encoder and decoder network $(E_1,G_1)$ and $(E_2,G_2)$. The encoder network consists of ?? resnet blocks with convolution filters of size $?\times?$ followed with convolution layers of size $??$. In the decoder network we use upsampling followed with $?$ convolutional layers of size $?\times ?$. The two discriminators are multilayered resnet network. We use
+The network architecture used in our experiments is based on UNIT (\cite{zhu2017unpaired}). The two generator networks are implemented as VAEs given by pairs of an encoder and decoder network $(E_x,G_x)$ and $(E_y,G_y)$. The encoder network consists of three convolution layers, followed by four ResNet blocks. The first convolution layer consists of $32$ filters of size $7\times 7$ with a stride of $1$. The next two layers consist of $64$ and $128$ filters of size $3\times 3$ with a stride of $2$. Each ResNet block consists of two convolution layers with $512$ filters of size $3\times 3$ and a stride of $1$. Likewise in the decoder network, we have four ResNet blocks of the same configuration followed with three upsampling blocks with an upsampling factor of $2$. After each upsampling block, there is a convolution layer. The three respectively, convolution layers have $128$, $64$ and $1$ filters of size $5\times 5$, $5\times 5$ and $7\times 7$ and padding of size $2$, $2$ and $3$. In all intermediate layers, after every convolution, we use a LeakyReLU as a non-linearity with a slope of $0.2$. In the ResNet blocks, non-linearity is applied only after the first convolution layer. In the final layer, we use \texttt{tanh} as a non-linearity. Furthermore, to impose the shared space assumption discussed previously in Section~\ref{sec:voice_conv}, the last layer of $E_x$ and $E_y$ and the first layer of $G_x$ and $G_y$ are defined to share weights. 
+
+
+The discriminator network consists of $6$ convolution layers. The first layer has $64$ filters of size $3\times 3$ and a stride of $2$. 
+In the next four layers, we double the number of filters after every layer and use a filter size of $3\times 3$ and  a stride of $2$. All layers are followed by a LeakyReLU as a non-linearity with a slope of $0.2$. The final layer performs a convolution with $1$ filter of size $2\times 2$ and a stride of $1$. 
+
+The cross-entropy loss results in a vanishing gradient problem. Thus, to avoid it and to ensure a stable training, we use the LS-GAN objective (\cite{mao2017least}). Furthermore, the input to the discriminator is taken at two more scales obtained by downsampling the input by a factor of $2$ and $4$. The multi-scale input is helpful for the progressive learning of the discriminator (\cite{wang2018high}).
+
+We refer to our base network as VC-GAN, the network with consistency loss discussed in Section~\ref{subsec:spec_con} as VC-Con-GAN, the network with projection loss discussed in Section~\ref{subsec:gl_spec_con} as VC-GL-GAN. All our implementation was done using NNabla, a neural network framework developed by Sony\footnote{\url{https://nnabla.org/}}. All our experiments were executed on GeForce GTX 1080 Ti GPU with $11$ GB of memory.
+
 \subsection{Training Procedure}
+\label{subsec:train_prod}
+We train all our network using the Adam optimizer~(\cite{kingma2014adam}) with a learning rate of $0.0001$ and the momentum parameters $\beta_1=0.5$ and $\beta_2=0.999$. Due to the size of the network and the activations, we used a minibatch training with a batch size of $2$ containing one image from domain $X$ and one from domain $Y$. We decide the batch size based on the available GPU memory. For the mel scale, the input dimension is of smaller size and activations take less memory. Thus, we were able to fit a batch of size $6$ with $3$ samples of each domain.
+
+\begin{table}[]
+    \centering
+    \scriptsize
+    \begin{tabular}{ccccc}
+    \toprule
+    \textbf{Spectrogram} & \textbf{Input Shape} & \textbf{Training Time} & \textbf{Inference Time} & \textbf{No. of Parameters} \\
+    & & hrs. & sec. &  \\
+    \midrule
+        Mag/LogMag & $(500,256,1)$ & 112.88 & 0.290 & 21,509,384 \\
+        Mel/LogMel & $(500,128,1)$& \ 49.17& 0.239 & 21,509,384\\
+        MagIF/LogMagIF & $(500,256,2)$&232.45 &0.179& 21,509,384\\
+    \bottomrule
+    \end{tabular}
+    \caption[Network time and parameters comparison]{Network time and parameters comparison of VC-Con-GAN for different spectrogram representations.}
+    \label{tab:time_and_param}
+\end{table}
+%We perform all training on a single GPU. 
+In Table~\ref{tab:time_and_param} we compare the training time, inference time and parameters of different input representations. Our network has a lot of hyperparameters. Due to the high computational cost, we avoid hyperparameter tuning. We use default configurations given in Table~\ref{tab:time_and_param}. For spectrogram consistency loss we decide the value of the hyperparameter by looking at the scale of other loss terms. In our experiments, we observed the spectrogram consistency loss becomes stagnant after a fixed number of iterations. This could be attributed to the convergence of the loss term. Therefore we decay the hyperparameter of the consistency loss by a factor of $0.9$ after every $10,000$ iterations.
+
+\begin{table}[]
+    \centering
+    \begin{tabular}{cc}
+    \toprule
+    \textbf{Loss} & \textbf{Hyperparameter}\\
+    \midrule
+    Reconstruction Term   &  10\\
+    Translation Term   & 10\\
+    Cycle Term& 10\\
+    KL for reconstruction & 0.01\\
+    KL for cyclic & 0.01\\
+    Magnitude consistency & 0.0003\\
+    Full spectrogram consistency & 0.005 \\
+    $w_1$, $w_2$ & 0.65 \\
+    \bottomrule
+    \end{tabular}
+    \caption[Hyperparameter Configuration]{Hyperparameter Configuration where reconstruction implies ($X\rightarrow X$, $Y\rightarrow Y$), translation implies ($X\rightarrow Y$, $Y\rightarrow X$) and cycle implies ($X\rightarrow Y\rightarrow X$, $Y\rightarrow X \rightarrow X$).  }
+    \label{tab:hyper_config}
+\end{table}
+
+To solve the optimization problem of our network we use an alternating gradient scheme as described in~\cite{goodfellow2014generative}. We first fix the discriminators $D_1$ and $D_2$ and apply a gradient descent to update the parameters of our two generator networks $(E_1,G_1)$ and $(E_2, G_2)$. We then fix the generators and apply gradient ascent to update the parameters of $D_1$ and $D_2$. We train all our networks for $1,000,000$ iterations where each iteration refers to a minibatch update. After every $10,000$ iterations, we decay weights by a factor of $0.0001$ and the learning rate by a factor of $0.5$. 
 
 \subsection{Postprocessing}
+\label{subsec:post_process_network}
 
+Previously, we applied a series of transformations to prepare the input representation of our network. To reconstruct the coherent waveform we further need to invert all transformations. In this section, we look at the series of steps required to reconstruct the time domain waveform of the speech signal.
+
+In the first set of experiments, we rescale the generated spectrogram from the range $[-1,1]$ to $[0,1]$ for the magnitude and $[0,\log 2]$ for the log magnitude. After that in the case of the mel scale, we take the pseudo-inverse of the mel filterbank matrix and used it to transform the mel spectrogram to the linear magnitude scale. We then performed GLA on the linear magnitude spectrogram to reconstruct the time domain signal. In the second set of experiments, for the magnitude, similar to the previous case, we scale the spectrogram to $[0,1]$, and to $[0,\log 2]$ for the log magnitude. For the IF we first take the finite summation along the time axis and then wrap it to lie in the range $(-\pi, \pi]$. Thus, we obtain the phase and linear magnitude spectrogram representations. We further combine them and apply the ISTFT transformation to reconstruct time domain waveform. 
+
+%Figure~\ref{??} further gives the block diagram illustration of post processing pipeline. 
 
